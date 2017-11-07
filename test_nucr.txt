@@ -1,0 +1,12 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# nucleation rate (#nuclei/s)
+delG = 3000
+delx = 1.0e-1
+D = np.logspace(1.0e-18,1.0e-9,base=10)
+
+nucr = 0.0+(D*1.0e9)*(delG/3000)*(1.0e-3/delx) 
+
+plt.plot(D,nucr,'xr')
+plt.show()

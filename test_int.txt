@@ -1,0 +1,29 @@
+import numpy as np
+import scipy as sp
+
+# concentrations (mol/m3) in two shells
+C = ([[2.0],[3.0]])
+# mole fractions in shells
+x = ([[0.2],[0.3]])
+# distance between shells (m)
+delt = 2.0e-6
+# self-diffusion coefficients (m2/s)
+Dpur = ([[1.0e-12],[1.0e-9]])
+
+# time step to diffuse over (s)
+ts = 1.0e-1
+# area to diffuse over (m)
+Area = np.pi*(delt*2.0)**2.0
+D = D_calc(x,Dpur)
+# diffusion coefficient dependence on composition
+def D_calc(x,Dpur):
+	D = np.product(x**Dpur)
+		
+# define the equation
+def diff(C, ts, x, delt, Area,D):
+	
+	dCdt = [((D*C[0]-D*C[1])/delt)*Area]
+	return dCdt
+	s
+sol = sp.integrate.odeint(diff, C,ts,args=(x,delt,Area,D))
+print sol
