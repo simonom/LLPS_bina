@@ -33,15 +33,17 @@ import numpy as np
 from spat_arrays import spat_arrays
 from concs import concs
 from gas_phase_and_spat2 import gas_phase_and_spat
-from eqn6 import eqn3
+from eqn7 import eqn3
 from accept_change import accept_change
 from interp_Gamma import interp_Gam as int_Gam
 from spat_arrays_inequal import spat_arrays_inequal
 from concs2 import concs2
 from phas_sep1 import phas_sep1
+import pdb #Command line debugger - see points of interest in the code below.
+           #When stopped at such points, type 'c' to continue
 
 def ETH23(ts, shn, Dp, Db, ut, es, estime, ai0, M, rho, Dg, Cstar, idma, 
-	SMILES_arr, T, gam0, PS0):
+	SMILES_arr, T, gam0, C):
 
 	# -----------------------------------------------------------------
 	# inputs:
@@ -79,7 +81,7 @@ def ETH23(ts, shn, Dp, Db, ut, es, estime, ai0, M, rho, Dg, Cstar, idma,
 	
 	# array preparation
 	# spatial arrays
-	[rc, V0, Diamw, V0sc] = spat_arrays(shn, Dp)
+	[rc, V0, Diamw] = spat_arrays(shn, Dp)
 	# remember starting width of inner shells (m)
 	del0 = rc[0]	
 	# number of time points we want to save results at 
@@ -87,10 +89,9 @@ def ETH23(ts, shn, Dp, Db, ut, es, estime, ai0, M, rho, Dg, Cstar, idma,
 	sp = int(1e3)
 	# initial concentration and number of moles array (mol/m3 and mol),
 	# also initial diffusion coefficient array
-	[Z0, Z0sc, Nz0, nrec, Vrec, Gamma_rec, SN_partrec, esrec, n0sc, 
-	nrecsc, Vrecsc, nuc2p] = concs(ai0, M, shn, V0, sp, rho, idma, 
+	[Z0, Nz0, nrec, Vrec, Gamma_rec, SN_partrec, esrec] = concs(ai0, M, shn, V0, sp, rho, idma, 
 			SMILES_arr, gam0)
-
+	
 	# ---------------------------------------------------------------------
 	# time loop preparation
     
@@ -105,86 +106,80 @@ def ETH23(ts, shn, Dp, Db, ut, es, estime, ai0, M, rho, Dg, Cstar, idma,
 	# update time count and array (s)
 	tsn = tsn+1
 	time = np.append(time, time[tsn-1]+ts)	
+	ts_count = 0
 	
 	# ---------------------------------------------------------------------
 	# time loop
 	while estime[estime.shape[0]-1]-time[tsn]>0:
    			
 		# rudimental approach to increasing time step
-		if ts<ts0:
+		if ts<ts0 and ts_count<=0:
 			ts=ts*1.5
 		
         # find new surface concentrations of components and surface 
 		# shell size, and call on LLPS partitioning	
-		[A1, Asc, shn1, Nz1, delta1, Z1, V1, rc, n1sc, 
-		V1sc, Z1sc] = gas_phase_and_spat(es, estime, shn, time, 
-		V0, V0sc, tsn, Nz0, n0sc, Z0, Z0sc, M, rho, rc, Dg, Cstar, ts, 
-		Diamw, idma, del0, T, gam0, PS0, Db)	
-		
-# 		if tsn==1:
-# 			print 'ETH23_0'
-# 			print Nz0
-# 			print Nz1
-# 			#print n0sc[0]/np.sum(n0sc,0)
-# 			print Nz0[0]/np.sum(Nz0,0)	
-# 			
-# 			Gam1 = int_Gam(Nz1/np.sum(Nz1,0),gam0,shn)
-# 			#Gam2 = int_Gam(n1sc/np.sum(n1sc,0),gam0,shn)
-#  			print Nz1[0,:]/np.sum(Nz1,0)
-# 			print Gam1
-#  			#print n1sc[0]/np.sum(n1sc,0)
-# 			#print Gam2
-# 			return
+		[A1, shn1, Nz1, delta1, Z1, V1, rc] = gas_phase_and_spat(es, estime, shn, time, 
+		V0, tsn, Nz0, Z0, M, rho, rc, Dg, Cstar, ts, 
+		Diamw, idma, del0, T, gam0, Db)	
+					
+# 		if tsn>=7460:
+# 			print tsn
+# 			print Nz0[:,-3::]/np.sum(Nz0[:,-3::], 0)
+# 			print Nz1[:,-3::]/np.sum(Nz1[:,-3::], 0)
+# 			if tsn==7305:
+# 				return			
 					
 		# diffusion between shells and phases	
-		[Nznew,Vnew,Znew,nscnew,Vscnew,Gamman] = eqn3(A1,Asc,shn1,M,Nz1,delta1,
-			Z1,ts,rho,idma,V1,Db,gam0,n1sc,tsn,V1sc,ut)		
-		
-		if tsn==1.0e6:
-			print 'ETH23_0'
-			print Nz1[0,:]/np.sum(Nz1,0)	
-# 			
-			Gam1 = int_Gam(Nz1/np.sum(Nz1,0),gam0,shn)
- 			print Nznew[0,:]/np.sum(Nznew,0)
-# 			print Gam1
-			print tsn
-
-		
+		[Nznew, Vnew, Znew, Gamman] = eqn3(A1, shn1, M, Nz1, delta1,
+			Z1, ts, rho, idma, V1, Db, gam0, 0.0, tsn, ut, C)		
+		# if zreci==125:
+# 			print(Nz1/np.sum(Nz1,0))
+# 			print(Nznew/np.sum(Nznew,0))
+# 			pdb.set_trace()
+			
 		# check whether diffusion threshold passed
-		ex_i = accept_change(Nz1, Nznew, shn1, ut, n1sc, nscnew)	
+		ex_i = accept_change(Nz1, Nznew, shn1, ut)	
 			
 		# if acceptable change exceeded or any component has negative 
 		# prescence, decrease time step
+		
 		while(np.sum(np.sum(ex_i))>0 or np.sum(np.sum(Nz1<0))>0 or 
-			np.sum(np.sum(Nznew<0))>0 or 
-			np.sum(np.sum(n1sc<0))>0 or 
-			np.sum(np.sum(nscnew<0))>0):
-			
+			np.sum(np.sum(Nznew<0)))>0:
+			ts_count = 200
 			# decrease time step
-			ts=ts/1.5
+			ts = ts/1.5
 			time[tsn]=time[tsn-1]+ts
-				
+			
+			# if ts<1.0e-3 and tsn>2200:
+# 				print 'uhoh'
+# 				print tsn
+# 				print ex_i
+# 				print Z1/np.sum(Z1,0)
+# 				print Znew/np.sum(Znew,0)
+# 				print Gamman
+# 				return
 			# find new surface concentrations of components and 
 			# surface shell size, and call on LLPS partitioning	
-			[A1, Asc, shn1, Nz1, delta1, Z1, V1, rc, n1sc, 
-			V1sc, Z1sc] = gas_phase_and_spat(es, estime, shn, time, 
-			V0, V0sc, tsn, Nz0, n0sc, Z0, Z0sc, M, rho, rc, Dg, 
-			Cstar, ts, Diamw, idma, del0, T, gam0, PS0, Db)
+			[A1, shn1, Nz1, delta1, Z1, V1, rc] = gas_phase_and_spat(es, estime, shn, time, 
+			V0, tsn, Nz0, Z0, M, rho, rc, Dg, 
+			Cstar, ts, Diamw, idma, del0, T, gam0, Db)
 	
 			# diffusion between shells and phases	
-			[Nznew,Vnew,Znew,nscnew,Vscnew,Gamman] = eqn3(A1,Asc,shn1,M,Nz1,
-			delta1,Z1,ts,rho,idma,V1,Db,gam0,n1sc,tsn,V1sc,ut)
+			[Nznew, Vnew, Znew, Gamman] = eqn3(A1, shn1, M, Nz1,
+			delta1, Z1, ts, rho, idma, V1, Db, gam0, 0.0, tsn, ut, C)
 			
 			# check whether diffusion threshold passed
-			ex_i=accept_change(Nz1, Nznew, shn1, ut, n1sc, nscnew)
+			ex_i = accept_change(Nz1, Nznew, shn1, ut)
 			
-		
+		ts_count = ts_count-1
 		# comment out to prevent phase separation
 		#[Nznew,nscnew,V1,V1sc] = phas_sep1(Nznew,nscnew,
 		#			shn1,gam0,M,rho,PS0,Vnew,Vscnew,Db,ts,nuc2p)
-
+		
+		
+		
 		# new spatial arrays
-		[delta1, rc, A, Asc] = spat_arrays_inequal(V1,shn1,V1sc)
+		[delta1, rc, A] = spat_arrays_inequal(V1, shn1)
 		
 		# record important information
 		if (time[tsn])>(estime[(estime.size)-1]/sp)*zreci:
@@ -193,17 +188,15 @@ def ETH23(ts, shn, Dp, Db, ut, es, estime, ai0, M, rho, Dg, Cstar, idma,
 			Vrec[0:shn, zreci] = V0	
 			SN_partrec[zreci, 0] =  shn
 			time2[0, zreci] = time[tsn]
-			nrecsc[:, 0:shn, zreci] = n0sc
-			Vrecsc[0:shn, zreci] = V0sc
-			Gamma_rec[0, 0:shn, zreci] = Gamman
+			Gamma_rec[0, 0:shn1-1, zreci] = Gamman[0, 1::]
 			zreci = zreci+1
-			if (zreci== 1):	
+			if zreci== 1:	
 				estime.shape = (1, estime.size)
 				esrec = np.append(estime, es, axis=0)	
 				estime = estime.reshape(estime.size)
 				
-# 			print 'zreci = ', zreci
-						
+# 			print('zreci = ', zreci)
+# 			print(Nznew/np.sum(Nznew,0))
 
 		
 		
@@ -212,13 +205,8 @@ def ETH23(ts, shn, Dp, Db, ut, es, estime, ai0, M, rho, Dg, Cstar, idma,
 		Nz0 = Nznew
 		V0 = Vnew
 		Z0 = Znew
-		Z0sc = Z1sc
-		ish = Vscnew[0,:]>0
-		Z0sc[0,ish] = nscnew[0,ish]/Vscnew[0,ish]
-		Z0sc[1,ish] = nscnew[1,ish]/Vscnew[0,ish]
 		shn = shn1
-		n0sc = nscnew
-		V0sc = Vscnew
+
 			
 		# update time count and array (s)
 		tsn = tsn+1
@@ -226,4 +214,4 @@ def ETH23(ts, shn, Dp, Db, ut, es, estime, ai0, M, rho, Dg, Cstar, idma,
 		
 		
 	
-	return nrec, Vrec, time, time2, Gamma_rec, esrec, nrecsc, Vrecsc
+	return nrec, Vrec, time, time2, Gamma_rec, esrec
